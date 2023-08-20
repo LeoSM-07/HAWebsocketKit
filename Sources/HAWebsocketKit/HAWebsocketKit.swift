@@ -2,36 +2,6 @@ import Foundation
 import Starscream
 import OSLog
 
-enum ReturnMessageType {
-    case states, config, services, panels
-}
-
-public enum FetchDataType: String {
-    case states = "get_states"
-    case config = "get_config"
-    case services = "get_services"
-    case panels = "get_panels"
-
-    var dataType: ReturnMessageType {
-        switch self {
-        case .states:
-            return .states
-        case .config:
-            return .config
-        case .services:
-            return .services
-        case .panels:
-            return .panels
-        }
-    }
-}
-
-public enum HAWebSocketConnectionStatus {
-    case disconnected
-    case requiresAuth
-    case fullyConnected
-}
-
 public class HAWebSocketConnection: WebSocketDelegate {
     private let logger = Logger(subsystem: "HAWebSocketKit", category: "HAWebSocketConnection")
     private let token: String
@@ -41,6 +11,9 @@ public class HAWebSocketConnection: WebSocketDelegate {
 
     public var isConnected = false
     public var status: HAWebSocketConnectionStatus = .disconnected
+
+    public var states: Set<HAEntity>?
+    public var config: HAConfig?
 
     public init(url serverUrl: URL, token serverToken: String) {
         self.token = serverToken
@@ -57,7 +30,7 @@ public class HAWebSocketConnection: WebSocketDelegate {
 
     public func didReceive(event: Starscream.WebSocketEvent, client: Starscream.WebSocketClient) {
         switch event {
-        case .connected(let headers):
+        case .connected(_):
             isConnected = true
             logger.info("HomeAssistant websocket is connected")
         case .disconnected(let reason, let code):
@@ -65,7 +38,11 @@ public class HAWebSocketConnection: WebSocketDelegate {
             status = .disconnected
             logger.info("HomeAssistant websocket is disconnected: \(reason) with code: \(code)")
         case .text(let string):
-            handleMessage(string)
+            do {
+                try handleMessage(string)
+            } catch {
+                handleError(error)
+            }
         case .binary(let data):
             print("Received data: \(data.count)")
         case .ping(_):
@@ -88,32 +65,60 @@ public class HAWebSocketConnection: WebSocketDelegate {
         }
     }
 
-    private func handleMessage(_ message: String) {
-        // Check to see if auth is required
-        if message.contains("\"auth_required\"") {
-            status = .requiresAuth
-            do {
-                try authenticate()
-            } catch {
-                handleError(error)
-            }
+    private func handleMessage(_ message: String) throws {
+        guard let messageData = message.data(using: .utf8) else {
+            throw HAWebSocketError.returnMessageDataInvalid
         }
-        // Check to see if auth was accepted
-        else if message.contains("\"auth_ok\"") {
+
+        guard let messageDictionary = try JSONSerialization.jsonObject(
+            with: messageData,
+            options: []
+        ) as? [String: Any] else {
+            throw HAWebSocketError.returnMessageDataInvalid
+        }
+
+        guard let messageType = messageDictionary["type"] as? String else {
+            throw HAWebSocketError.unableToDetermineIncomingMessageType
+        }
+
+        switch messageType {
+        case "auth_required":
+            status = .requiresAuth
+            authenticate()
+        case "auth_ok":
             status = .fullyConnected
             logger.info("HA authentication complete, fully connected.")
-            fetchData(type: .config)
-        } else {
-            switch lastMessageType {
-            case .states:
-                print("States: \(message)")
-            case .config:
-                print("Config: \(message)")
-            default: print("Unknown type message: \(message)")
+            fetchData(type: .states)
+        case "result":
+            try handleResultMessage(messageDictionary)
+        case "event":
+            guard let event = messageDictionary["event"] as? String else {
+                throw HAWebSocketError.returnMessageDataInvalid
             }
+            try handleEventMessage(event)
+        default: throw HAWebSocketError.unableToDetermineIncomingMessageType
         }
+    }
 
+    private func handleEventMessage(_ message: String) throws {
 
+    }
+
+    private func handleResultMessage(_ message: [String: Any]) throws {
+        switch lastMessageType {
+        case .states:
+            let jsonResult = try JSONSerialization.data(withJSONObject: message["result"] as Any)
+            let states = try JSONDecoder().decode(Set<HAEntity>.self, from: jsonResult)
+            logger.log("Successfully retrieved server states")
+
+            self.states = states
+        case .config:
+            let jsonResult = try JSONSerialization.data(withJSONObject: message["result"] as Any)
+            let config = try JSONDecoder().decode(HAConfig.self, from: jsonResult)
+            logger.log("Successfully retrieved server configuration")
+            self.config = config
+        default: print("Unknown type message: \(message)")
+        }
     }
 
     public func fetchData(type: FetchDataType) {
