@@ -19,17 +19,21 @@ public struct HAContext: Codable, Hashable {
     }
 }
 
+extension HAEntity: Identifiable {
+    public var id: String { self.entityId }
+}
+
 public struct HAEntity: Decodable, Hashable {
     public static func == (lhs: HAEntity, rhs: HAEntity) -> Bool {
         lhs.entityId == rhs.entityId
     }
 
 //    var attributes: [String: Any]
-    var context: HAContext
-    var entityId: String
-    var lastChanged: String
-    var lastUpdated: String
-    var state: String
+    public var context: HAContext
+    public var entityId: String
+    public var lastChanged: String
+    public var lastUpdated: String
+    public var state: String
 
     enum CodingKeys: String, CodingKey {
         case attributes

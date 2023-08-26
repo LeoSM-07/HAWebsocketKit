@@ -1,8 +1,9 @@
 import Foundation
 import Starscream
 import OSLog
+import Observation
 
-public class HAWebSocketConnection: WebSocketDelegate {
+@Observable public class HAWebSocketConnection: WebSocketDelegate {
     private let logger = Logger(subsystem: "HAWebSocketKit", category: "HAWebSocketConnection")
     private let token: String
     private var socket: WebSocket
