@@ -8,7 +8,9 @@
 import Foundation
 import SwiftUI
 
-public enum HAEntityDomain: String, CaseIterable {
+public enum HAEntityDomain: String, Identifiable, CaseIterable {
+    public var id: String { self.rawValue }
+
     case person = "person"
     case binarySensor = "binary_sensor"
     case sensor = "sensor"
@@ -35,7 +37,12 @@ public enum HAEntityDomain: String, CaseIterable {
     case button = "button"
     case update = "update"
     case waterHeater = "water_heater"
+    case number = "number"
     case unknown = "unknown"
+
+    public init(entityId: String) {
+        self = HAEntityDomain(rawValue: String(entityId.split(separator: ".").first ?? "unknown")) ?? .unknown
+    }
 
     public var name: String {
         switch self {
@@ -65,6 +72,7 @@ public enum HAEntityDomain: String, CaseIterable {
         case .button: return "Button"
         case .update: return "Update"
         case .waterHeater: return "Water Heater"
+        case .number: return "Number"
         case .unknown: return "Unknown"
         }
     }
@@ -103,6 +111,7 @@ public enum HAEntityDomain: String, CaseIterable {
         case .button: return "button.programmable"
         case .update: return "arrow.triangle.2.circlepath"
         case .waterHeater: return "pipe.and.drop.fill"
+        case .number: return "number"
         case .unknown: return "questionmark"
         }
     }

@@ -19,18 +19,12 @@ public struct HAContext: Codable, Hashable {
     }
 }
 
-extension HAEntity: Identifiable {
-    public var id: String { self.entityId }
-}
-
-public struct HAEntity: Decodable, Hashable {
-    public static func == (lhs: HAEntity, rhs: HAEntity) -> Bool {
-        lhs.entityId == rhs.entityId
-    }
+public struct HAEntity: Decodable, Hashable, Identifiable {
 
 //    var attributes: [String: Any]
+    public var id: String
     public var context: HAContext
-    public var entityId: String
+    public var domain: HAEntityDomain
     public var lastChanged: String
     public var lastUpdated: String
     public var state: String
@@ -38,7 +32,7 @@ public struct HAEntity: Decodable, Hashable {
     enum CodingKeys: String, CodingKey {
         case attributes
         case context
-        case entityId = "entity_id"
+        case id = "entity_id"
         case lastChanged = "last_changed"
         case lastUpdated = "last_updated"
         case state
@@ -48,9 +42,15 @@ public struct HAEntity: Decodable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 //        self.attributes = try container.decode([String: Any].self, forKey: .attributes)
         self.context = try container.decode(HAContext.self, forKey: .context)
-        self.entityId = try container.decode(String.self, forKey: .entityId)
+        self.id = try container.decode(String.self, forKey: .id)
         self.lastChanged = try container.decode(String.self, forKey: .lastChanged)
         self.lastUpdated = try container.decode(String.self, forKey: .lastUpdated)
         self.state = try container.decode(String.self, forKey: .state)
+
+        self.domain = HAEntityDomain(entityId: self.id)
+    }
+
+    public static func == (lhs: HAEntity, rhs: HAEntity) -> Bool {
+        lhs.id == rhs.id
     }
 }
